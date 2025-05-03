@@ -2,9 +2,9 @@ package com.bankapp.controller;
 
 import com.bankapp.model.Account;
 import com.bankapp.model.Client;
-//import com.bankapp.repository.ClientRepository;
-//import com.bankapp.util.SessionManager;
 import com.bankapp.repository.ClientRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -19,17 +19,18 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/transactions")
 public class TransactionController {
-    //    private final SessionManager sessionManager;
     private Client recipientClient;
     private Account recipientAccount;
     private final RestTemplate restTemplate;
+    private final MeterRegistry meterRegistry; // Добавляем MeterRegistry для метрик
 
-    public TransactionController(RestTemplate restTemplate) {
+    public TransactionController(RestTemplate restTemplate, MeterRegistry meterRegistry) {
         this.restTemplate = restTemplate;
+        this.meterRegistry = meterRegistry; // Инициализируем MeterRegistry
     }
 
-
-    // 1️⃣ Получить список всех клиентов перед переводом
+    // Эндпоинт: GET /transactions/clients
+    // Метрики: transactions_get_clients_requests_total (counter), transactions_get_clients_duration (timer)
     @Operation(
             summary = "Получить список всех клиентов",
             description = "Возвращает список всех зарегистрированных клиентов для выбора получателя перевода"
@@ -84,11 +85,17 @@ public class TransactionController {
     )
     @GetMapping("/clients")
     public List<Client> getAllClients() {
-        return List.copyOf(ClientRepository.getAllClients());
-//        return restTemplate.getForObject("http://localhost:8081/clients", List.class);
+        meterRegistry.counter("transactions_get_clients_requests_total", "application", "bank-app", "endpoint", "/clients").increment();
+        Timer.Sample sample = Timer.start(meterRegistry);
+
+        List<Client> clients = List.copyOf(ClientRepository.getAllClients());
+
+        sample.stop(meterRegistry.timer("transactions_get_clients_duration", "application", "bank-app", "endpoint", "/clients"));
+        return clients;
     }
 
-    // 2️⃣ Выбрать получателя перевода по телефону и номеру счета
+    // Эндпоинт: POST /transactions/select-recipient
+    // Метрики: transactions_select_recipient_requests_total (counter), transactions_select_recipient_duration (timer)
     @Operation(
             summary = "Выбрать получателя перевода",
             description = "Выбирает получателя перевода по имени пользователя и номеру счета. Требуется авторизация."
@@ -170,16 +177,22 @@ public class TransactionController {
             @Parameter(description = "Номер счета получателя", example = "123456789012")
             @RequestParam String accountNumber
     ) {
+        meterRegistry.counter("transactions_select_recipient_requests_total", "application", "bank-app", "endpoint", "/select-recipient").increment();
+        Timer.Sample sample = Timer.start(meterRegistry);
+
         String res = restTemplate.getForObject("http://localhost:8081/auth/isLogged", String.class);
         if (res.equals("не аутентифицирован")) {
+            sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             return "❌ Ошибка: Сначала войдите в систему!";
         }
         if (!res.equals("аутентифицирован")) {
+            sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             return "❌ Ошибка: попробуйте попозже";
         }
-//        Optional<Client> recipientOpt = ClientRepository.findByUsername(username);
+
         Client clientFromAuthServer = restTemplate.getForObject("http://localhost:8081/client/" + username, Client.class);
         if (clientFromAuthServer == null) {
+            sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             return "❌ Ошибка: Получатель не найден! 47";
         }
         System.out.println(username);
@@ -187,6 +200,7 @@ public class TransactionController {
         Optional<Client> recipientOpt = ClientRepository.findById(clientFromAuthServer.getId());
         System.out.println(recipientOpt.get());
         if (recipientOpt.isEmpty()) {
+            sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             return "❌ Ошибка: Получатель не найден! 52";
         }
 
@@ -198,16 +212,20 @@ public class TransactionController {
                 .findFirst();
 
         if (recipientAccountOpt.isEmpty()) {
+            sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             return "❌ Ошибка: У получателя нет такого счета!";
         }
 
         this.recipientClient = client;
         this.recipientAccount = recipientAccountOpt.get();
 
-        return "✅ Получатель выбран: " + recipientClient.getFullName() + " (Счет: " + recipientAccount.getAccountNumber() + ")";
+        String result = "✅ Получатель выбран: " + recipientClient.getFullName() + " (Счет: " + recipientAccount.getAccountNumber() + ")";
+        sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
+        return result;
     }
 
-    // 3️⃣ Выполнить перевод (указать сумму и изменить баланс)
+    // Эндпоинт: POST /transactions/transfer
+    // Метрики: transactions_transfer_requests_total (counter), transactions_transfer_duration (timer)
     @Operation(
             summary = "Выполнить перевод",
             description = "Выполняет перевод указанной суммы от текущего пользователя к выбранному получателю. Требуется авторизация и предварительный выбор получателя."
@@ -294,27 +312,29 @@ public class TransactionController {
     public String transfer(
             @Parameter(description = "Сумма перевода в рублях", example = "1000.0")
             @RequestParam double amount) {
-//        if (!sessionManager.isLoggedIn()) {
-//            return "❌ Ошибка: Сначала войдите в систему!";
-//        }
+        meterRegistry.counter("transactions_transfer_requests_total", "application", "bank-app", "endpoint", "/transfer").increment();
+        Timer.Sample sample = Timer.start(meterRegistry);
+
         String authStatus = restTemplate.getForObject("http://localhost:8081/auth/isLogged", String.class);
         if (authStatus.equals("не аутентифицирован")) {
+            sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Сначала войдите в систему!";
         }
 
         if (recipientClient == null || recipientAccount == null) {
+            sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Сначала выберите получателя!";
         }
 
-//        Client sender = sessionManager.getLoggedInClient();
-
         Client senderFromAuthServer = restTemplate.getForObject("http://localhost:8081/auth/currentClient", Client.class);
         if (senderFromAuthServer == null) {
+            sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Пользователь не авторизован!";
         }
 
         Optional<Client> senderOpt = ClientRepository.findById(senderFromAuthServer.getId());
         if (senderOpt.isEmpty()) {
+            sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Получатель не найден!";
         }
 
@@ -322,15 +342,16 @@ public class TransactionController {
 
         Optional<Account> senderAccountOpt = sender.getAccounts().stream().findFirst();
         if (senderAccountOpt.isEmpty()) {
+            sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: У вас нет счета!";
         }
 
         Account senderAccount = senderAccountOpt.get();
 
         if (senderAccount.getBalance() < amount) {
+            sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Недостаточно средств на счете!";
         }
-
 
         // Обновляем балансы
         System.out.println("💸 Перевод " + amount + "₽ от аккаунта " + senderAccount.getAccountNumber()
@@ -345,7 +366,8 @@ public class TransactionController {
         System.out.println("✅ Баланс отправителя ПОСЛЕ: " + senderAccount.getBalance() + "₽");
         System.out.println("✅ Баланс получателя ПОСЛЕ: " + recipientAccount.getBalance() + "₽");
 
-
-        return "✅ Перевод завершен! " + amount + "₽ переведено на счет " + recipientAccount.getAccountNumber();
+        String result = "✅ Перевод завершен! " + amount + "₽ переведено на счет " + recipientAccount.getAccountNumber();
+        sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
+        return result;
     }
 }
