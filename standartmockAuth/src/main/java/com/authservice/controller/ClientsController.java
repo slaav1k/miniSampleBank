@@ -2,21 +2,39 @@ package com.authservice.controller;
 
 import com.authservice.model.Client;
 import com.authservice.repository.ClientRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.observation.annotation.Observed;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 public class ClientsController {
+    private static final Logger logger = LoggerFactory.getLogger(ClientsController.class);
+
+    private final ClientRepository clientRepository;
+    private final MeterRegistry meterRegistry;
+
+    @Autowired
+    public ClientsController(ClientRepository clientRepository, MeterRegistry meterRegistry) {
+        this.clientRepository = clientRepository;
+        this.meterRegistry = meterRegistry;
+    }
+
     @Operation(
             summary = "Получить всех пользователей",
             description = "Возвращает список всех зарегистрированных клиентов"
@@ -63,13 +81,27 @@ public class ClientsController {
             )
     )
     @GetMapping("/clients")
+    @Observed(name = "clients.list", contextualName = "clients#list", lowCardinalityKeyValues = {"operation", "list"})
     public List<Client> getAllClients() {
-        return new ArrayList<>(ClientRepository.getAllClients());
+        logger.info("Запрос на получение списка всех клиентов");
+        meterRegistry.counter("clients_list_requests_total", "endpoint", "/clients").increment();
+
+        // Добавление Timer для измерения времени выполнения
+        Timer timer = meterRegistry.timer("clients_list_request_duration", "endpoint", "/clients");
+        long startTime = System.nanoTime();
+        try {
+            List<Client> clients = new ArrayList<>(clientRepository.getAllClients());
+            logger.debug("Возвращено {} клиентов", clients.size());
+            return clients;
+        } finally {
+            long duration = System.nanoTime() - startTime;
+            timer.record(duration, TimeUnit.NANOSECONDS);
+        }
     }
 
     @Operation(
-            summary = "Получить пользователя по username",
-            description = "Возвращает пользователя по имени пользователя, если он найден"
+            summary = "Получить пользователя по имени пользователя",
+            description = "Возвращает информацию о клиенте по его имени пользователя"
     )
     @ApiResponse(
             responseCode = "200",
@@ -107,14 +139,35 @@ public class ClientsController {
             )
     )
     @GetMapping("/client/{username}")
+    @Observed(name = "clients.get", contextualName = "clients#get", lowCardinalityKeyValues = {"operation", "get"})
     public Client getClientByUsername(
             @Parameter(description = "Имя пользователя клиента", example = "ivan123")
             @PathVariable String username) {
-        System.out.println(username);
-        System.out.println(ClientRepository.getAllClients());
-        System.out.println(ClientRepository.findByUsername(username));
-        return ClientRepository.findByUsername(username).orElse(null);
+        logger.info("Запрос клиента по username: {}", username);
+        meterRegistry.counter("client_get_requests_total", "endpoint", "/client/" + username).increment();
+
+        // Добавление Gauge для отслеживания количества клиентов в памяти
+        io.micrometer.core.instrument.Gauge.builder(
+                        "clients_in_memory_count",
+                        clientRepository,
+                        repo -> repo.getAllClients().size()
+                )
+                .tags(List.of(
+                        Tag.of("endpoint", "/client/" + username),
+                        Tag.of("application", "auth-service")
+                ))
+                .description("Number of clients in memory")
+                .register(meterRegistry);
+
+        // Добавление DistributionSummary для распределения размера списка клиентов
+        meterRegistry.summary("clients_list_size_distribution", "endpoint", "/client/" + username).record(clientRepository.getAllClients().size());
+
+        Client client = clientRepository.findByUsername(username)
+                .orElseThrow(() -> {
+                    logger.warn("Клиент с username {} не найден", username);
+                    return new RuntimeException("Клиент с именем " + username + " не найден");
+                });
+        logger.debug("Найден клиент: {}", client);
+        return client;
     }
-
-
 }

@@ -1,8 +1,11 @@
 package com.authservice.repository;
 
 import com.authservice.model.Client;
+import org.springframework.stereotype.Repository;
+
 import java.util.*;
 
+@Repository
 public class ClientRepository {
     private static final Map<String, Client> clients = new HashMap<>();
 
