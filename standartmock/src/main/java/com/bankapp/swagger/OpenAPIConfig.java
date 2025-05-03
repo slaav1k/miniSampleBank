@@ -32,8 +32,8 @@ public class OpenAPIConfig {
         prodServer.setDescription("Server URL in Production environment");
 
         Contact contact = new Contact();
-        contact.setEmail("my@ya.ru");
-        contact.setName("Alex");
+        contact.setEmail("arhipkin.v.m@edu-rsreu.ru");
+        contact.setName("Vyacheslav");
 
         License licens = new License().name("GPL License").url("https://choosealicense.com/licenses/gpl/");
 

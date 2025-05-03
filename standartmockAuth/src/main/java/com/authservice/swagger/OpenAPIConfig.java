@@ -32,16 +32,16 @@ public class OpenAPIConfig {
         prodServer.setDescription("Server URL in Production environment");
 
         Contact contact = new Contact();
-        contact.setEmail("my@ya.ru");
-        contact.setName("Alex");
+        contact.setEmail("arhipkin.v.m@edu-rsreu.ru");
+        contact.setName("Vyacheslav");
 
         License licens = new License().name("GPL License").url("https://choosealicense.com/licenses/gpl/");
 
         Info info = new Info()
-                .title("Bank API")
+                .title("BankAuth API")
                 .version("1.0")
                 .contact(contact)
-                .description("This API exposes endpoints to manage bank account.")
+                .description("This API exposes endpoints to manage auth to bank profile.")
                 .license(licens);
 
         return new OpenAPI().info(info).servers(List.of(devServer, prodServer));
