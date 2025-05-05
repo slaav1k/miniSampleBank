@@ -2,6 +2,7 @@ package com.bankapp.controller;
 
 import com.bankapp.model.Account;
 import com.bankapp.model.Client;
+import com.bankapp.repository.AccountRepository;
 import com.bankapp.repository.ClientRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -24,11 +26,13 @@ public class TransactionController {
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry; // Добавляем MeterRegistry для метрик
     private final ClientRepository clientRepository;
+    private final AccountRepository accountRepository;
 
-    public TransactionController(RestTemplate restTemplate, MeterRegistry meterRegistry, ClientRepository clientRepository) {
+    public TransactionController(RestTemplate restTemplate, MeterRegistry meterRegistry, ClientRepository clientRepository, AccountRepository accountRepository) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.clientRepository = clientRepository;
+        this.accountRepository = accountRepository;
     }
 
     // Эндпоинт: GET /transactions/clients
@@ -185,24 +189,30 @@ public class TransactionController {
         String res = restTemplate.getForObject("http://localhost:8081/auth/isLogged", String.class);
         if (res.equals("не аутентифицирован")) {
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
+            System.out.println("❌ Ошибка: Сначала войдите в систему!");
             return "❌ Ошибка: Сначала войдите в систему!";
         }
         if (!res.equals("аутентифицирован")) {
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
+            System.out.println("❌ Ошибка: попробуйте попозже");
             return "❌ Ошибка: попробуйте попозже";
         }
 
         Client clientFromAuthServer = restTemplate.getForObject("http://localhost:8081/client/" + username, Client.class);
         if (clientFromAuthServer == null) {
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
+            System.out.println("❌ Ошибка: Получатель не найден! 47");
             return "❌ Ошибка: Получатель не найден! 47";
         }
+
+
         System.out.println(username);
-        System.out.println(clientFromAuthServer);
+//        System.out.println(clientFromAuthServer);
         Optional<Client> recipientOpt = clientRepository.findById(clientFromAuthServer.getId());
         System.out.println(recipientOpt.get());
         if (recipientOpt.isEmpty()) {
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
+            System.out.println("❌ Ошибка: Получатель не найден! 52");
             return "❌ Ошибка: Получатель не найден! 52";
         }
 
@@ -311,9 +321,11 @@ public class TransactionController {
             )
     )
     @PostMapping("/transfer")
+    @Transactional // Добавляем транзакцию для атомарности
     public String transfer(
             @Parameter(description = "Сумма перевода в рублях", example = "1000.0")
-            @RequestParam double amount) {
+            @RequestParam double amount
+    ) {
         meterRegistry.counter("transactions_transfer_requests_total", "application", "bank-app", "endpoint", "/transfer").increment();
         Timer.Sample sample = Timer.start(meterRegistry);
 
@@ -364,6 +376,10 @@ public class TransactionController {
 
         senderAccount.setBalance(senderAccount.getBalance() - amount);
         recipientAccount.setBalance(recipientAccount.getBalance() + amount);
+
+        // Сохраняем изменения в базе
+        accountRepository.save(senderAccount);
+        accountRepository.save(recipientAccount);
 
         System.out.println("✅ Баланс отправителя ПОСЛЕ: " + senderAccount.getBalance() + "₽");
         System.out.println("✅ Баланс получателя ПОСЛЕ: " + recipientAccount.getBalance() + "₽");

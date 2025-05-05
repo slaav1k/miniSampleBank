@@ -3,6 +3,8 @@ package com.bankapp.model;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import lombok.Data;
 import jakarta.persistence.*;
+import lombok.ToString;
+
 import java.util.UUID;
 
 @Data
@@ -25,6 +27,7 @@ public class Account {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id", nullable = false)
     @JsonBackReference // Убирает рекурсию на стороне Account
+    @ToString.Exclude
     private Client client;
 
     public Account() {

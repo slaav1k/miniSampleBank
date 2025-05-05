@@ -3,6 +3,8 @@ package com.bankapp.model;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import lombok.Data;
 import jakarta.persistence.*;
+import lombok.ToString;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +31,7 @@ public class Client {
 
     @OneToMany(mappedBy = "client", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     @JsonManagedReference // Сериализация списка аккаунтов
+    @ToString.Exclude
     private List<Account> accounts = new ArrayList<>();
 
     public Client() {

@@ -323,6 +323,43 @@ public class AuthController {
         return client;
     }
 
+
+    @Operation(
+            summary = "Возвращает ID текущего пользователя",
+            description = "Возвращает только ID текущего аутентифицированного пользователя"
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "ID текущего пользователя",
+            content = @Content(
+                    mediaType = "application/json",
+                    examples = {
+                            @ExampleObject(
+                                    name = "Аутентифицированный пользователь",
+                                    value = "\"123e4567-e89b-12d3-a456-426614174000\""
+                            ),
+                            @ExampleObject(
+                                    name = "Не аутентифицирован",
+                                    value = "null"
+                            )
+                    }
+            )
+    )
+    @GetMapping("/currentClientId")
+    public String getCurrentClientId() {
+        meterRegistry.counter("auth_current_client_id_requests_total", "application", "auth-service", "endpoint", "/currentClientId").increment();
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            Thread.sleep(responseTime);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        String clientId = sessionManager.isLoggedIn() ? sessionManager.getLoggedInClient().getId().toString() : null;
+        sample.stop(meterRegistry.timer("auth_current_client_id_duration", "application", "auth-service", "endpoint", "/currentClientId"));
+        return clientId;
+    }
+
+
     @Operation(
             summary = "Выход из системы",
             description = "Разлогинивает текущего пользователя"
