@@ -1,5 +1,6 @@
 package com.authservice.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import lombok.Data;
 import jakarta.persistence.*;
 import java.util.UUID;
@@ -23,6 +24,7 @@ public class Account {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id", nullable = false)
+    @JsonBackReference // Убирает рекурсию на стороне Account
     private Client client;
 
     public Account() {

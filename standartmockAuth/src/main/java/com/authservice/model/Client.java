@@ -1,5 +1,6 @@
 package com.authservice.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import lombok.Data;
 import jakarta.persistence.*;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ public class Client {
     private String password;
 
     @OneToMany(mappedBy = "client", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @JsonManagedReference // Сериализация списка аккаунтов
     private List<Account> accounts = new ArrayList<>();
 
     public Client() {

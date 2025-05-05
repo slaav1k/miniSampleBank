@@ -23,10 +23,12 @@ public class TransactionController {
     private Account recipientAccount;
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry; // Добавляем MeterRegistry для метрик
+    private final ClientRepository clientRepository;
 
-    public TransactionController(RestTemplate restTemplate, MeterRegistry meterRegistry) {
+    public TransactionController(RestTemplate restTemplate, MeterRegistry meterRegistry, ClientRepository clientRepository) {
         this.restTemplate = restTemplate;
-        this.meterRegistry = meterRegistry; // Инициализируем MeterRegistry
+        this.meterRegistry = meterRegistry;
+        this.clientRepository = clientRepository;
     }
 
     // Эндпоинт: GET /transactions/clients
@@ -88,7 +90,7 @@ public class TransactionController {
         meterRegistry.counter("transactions_get_clients_requests_total", "application", "bank-app", "endpoint", "/clients").increment();
         Timer.Sample sample = Timer.start(meterRegistry);
 
-        List<Client> clients = List.copyOf(ClientRepository.getAllClients());
+        List<Client> clients = List.copyOf(clientRepository.findAll());
 
         sample.stop(meterRegistry.timer("transactions_get_clients_duration", "application", "bank-app", "endpoint", "/clients"));
         return clients;
@@ -197,7 +199,7 @@ public class TransactionController {
         }
         System.out.println(username);
         System.out.println(clientFromAuthServer);
-        Optional<Client> recipientOpt = ClientRepository.findById(clientFromAuthServer.getId());
+        Optional<Client> recipientOpt = clientRepository.findById(clientFromAuthServer.getId());
         System.out.println(recipientOpt.get());
         if (recipientOpt.isEmpty()) {
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
@@ -332,7 +334,7 @@ public class TransactionController {
             return "❌ Ошибка: Пользователь не авторизован!";
         }
 
-        Optional<Client> senderOpt = ClientRepository.findById(senderFromAuthServer.getId());
+        Optional<Client> senderOpt = clientRepository.findById(senderFromAuthServer.getId());
         if (senderOpt.isEmpty()) {
             sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Получатель не найден!";

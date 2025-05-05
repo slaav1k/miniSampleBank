@@ -1,9 +1,9 @@
-//package com.bankapp.util;
+//package com.authservice.util;
 //
-//import com.bankapp.model.Client;
-//import com.bankapp.model.Account;
-//import com.bankapp.repository.ClientRepository;
-//import com.bankapp.repository.AccountRepository;
+//import com.authservice.model.Client;
+//import com.authservice.model.Account;
+//import com.authservice.repository.ClientRepository;
+//import com.authservice.repository.AccountRepository;
 //import com.github.javafaker.Faker;
 //import org.springframework.boot.CommandLineRunner;
 //import org.springframework.http.HttpEntity;
@@ -60,19 +60,19 @@
 //            // Сохраняем обновленного клиента с привязанными счетами
 //            clientRepository.save(client);
 //
-////            // Отправляем клиента в эндпоинт /auth/register
-////            String url = "http://localhost:8081/auth/register";
-////            HttpHeaders headers = new HttpHeaders();
-////            headers.setContentType(MediaType.APPLICATION_JSON);
-////
-////            HttpEntity<Client> request = new HttpEntity<>(client, headers);
-////
-////            try {
-////                restTemplate.postForObject(url, request, Client.class);
-////                System.out.println("📤 Клиент зарегистрирован в auth-service через /auth/register");
-////            } catch (Exception e) {
-////                System.out.println("❌ Ошибка регистрации в auth-service: " + e.getMessage());
-////            }
+//            // Отправляем клиента в эндпоинт /auth/register
+//            String url = "http://localhost:8081/auth/register";
+//            HttpHeaders headers = new HttpHeaders();
+//            headers.setContentType(MediaType.APPLICATION_JSON);
+//
+//            HttpEntity<Client> request = new HttpEntity<>(client, headers);
+//
+//            try {
+//                restTemplate.postForObject(url, request, Client.class);
+//                System.out.println("📤 Клиент зарегистрирован в auth-service через /auth/register");
+//            } catch (Exception e) {
+//                System.out.println("❌ Ошибка регистрации в auth-service: " + e.getMessage());
+//            }
 //        }
 //
 //        System.out.println("🎉 Генерация тестовых данных завершена!");
