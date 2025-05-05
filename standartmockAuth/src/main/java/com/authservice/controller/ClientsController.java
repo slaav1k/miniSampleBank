@@ -86,11 +86,10 @@ public class ClientsController {
         logger.info("Запрос на получение списка всех клиентов");
         meterRegistry.counter("clients_list_requests_total", "endpoint", "/clients").increment();
 
-        // Добавление Timer для измерения времени выполнения
         Timer timer = meterRegistry.timer("clients_list_request_duration", "endpoint", "/clients");
         long startTime = System.nanoTime();
         try {
-            List<Client> clients = new ArrayList<>(clientRepository.getAllClients());
+            List<Client> clients = clientRepository.findAll();
             logger.debug("Возвращено {} клиентов", clients.size());
             return clients;
         } finally {
@@ -150,7 +149,7 @@ public class ClientsController {
         io.micrometer.core.instrument.Gauge.builder(
                         "clients_in_memory_count",
                         clientRepository,
-                        repo -> repo.getAllClients().size()
+                        repo -> repo.findAll().size()
                 )
                 .tags(List.of(
                         Tag.of("endpoint", "/client/" + username),
@@ -160,7 +159,7 @@ public class ClientsController {
                 .register(meterRegistry);
 
         // Добавление DistributionSummary для распределения размера списка клиентов
-        meterRegistry.summary("clients_list_size_distribution", "endpoint", "/client/" + username).record(clientRepository.getAllClients().size());
+        meterRegistry.summary("clients_list_size_distribution", "endpoint", "/client/" + username).record(clientRepository.findAll().size());
 
         Client client = clientRepository.findByUsername(username)
                 .orElseThrow(() -> {

@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -49,64 +50,6 @@ public class AuthController {
 //        return clientService.register(fullName, phone, username, password);
 //    }
 
-    @Operation(
-            summary = "Регистрация через форму",
-            description = "Регистрирует нового пользователя через параметры формы"
-    )
-    @ApiResponse(
-            responseCode = "200",
-            description = "Успешная регистрация",
-            content = @Content(
-                    mediaType = "application/json",
-                    examples = @ExampleObject(
-                            name = "Успешная регистрация",
-                            value = """
-                            {
-                                "id": "123e4567-e89b-12d3-a456-426614174000",
-                                "fullName": "Иван Иванов",
-                                "phone": "+79001234567",
-                                "username": "ivan123",
-                                "password": "12345",
-                                "accounts": []
-                            }
-                            """
-                    )
-            )
-    )
-    @ApiResponse(
-            responseCode = "400",
-            description = "Ошибка: Пользователь уже существует",
-            content = @Content(
-                    mediaType = "application/json",
-                    examples = @ExampleObject(
-                            name = "Ошибка регистрации",
-                            value = """
-                            {
-                                "error": "Пользователь с именем ivan123 уже существует"
-                            }
-                            """
-                    )
-            )
-    )
-    @PostMapping(value = "/register/form", consumes = "application/x-www-form-urlencoded")
-    public Client register(
-            @Parameter(description = "ФИО клиента", example = "Иван Иванов")
-            @RequestParam String fullName,
-            @Parameter(description = "Телефон клиента", example = "+79001234567")
-            @RequestParam String phone,
-            @Parameter(description = "Имя пользователя", example = "ivan123")
-            @RequestParam String username,
-            @Parameter(description = "Пароль", example = "12345")
-            @RequestParam String password) {
-
-
-//        return clientService.register(fullName, phone, username, password);
-        meterRegistry.counter("auth_register_form_requests_total", "application", "auth-service", "endpoint", "/register/form").increment();
-        Timer.Sample sample = Timer.start(meterRegistry);
-        Client result = clientService.register(fullName, phone, username, password);
-        sample.stop(meterRegistry.timer("auth_register_form_duration", "application", "auth-service", "endpoint", "/register/form"));
-        return result;
-    }
 
 
     @Operation(
