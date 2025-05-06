@@ -7,6 +7,7 @@ import com.bankapp.repository.ClientRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,5 +35,17 @@ public class AccountService {
 
     public Optional<Account> findByNumber(String number) {
         return accountRepository.findByAccountNumber(number);
+    }
+
+    public Optional<Account> findById(UUID id) {
+        return accountRepository.findById(id);
+    }
+
+    public List<Account> findAllAccountsByClientId(UUID clientId) {
+        return accountRepository.findAccountsByClientId(clientId);
+    }
+
+    public List<Account> findAllAccountsByUsername(String username) {
+        return accountRepository.findAccountsByClientUsername(username);
     }
 }

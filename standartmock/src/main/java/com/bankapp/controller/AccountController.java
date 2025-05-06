@@ -9,10 +9,14 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/accounts")
 public class AccountController {
     public AccountService accountService;
+
 
     public AccountController(AccountService accountService) {
         this.accountService = accountService;
@@ -52,4 +56,21 @@ public class AccountController {
     public Account create(@RequestParam String clientId) {
         return accountService.createAccount(clientId);
     }
+
+    @GetMapping("/account/{number}")
+    public Account getAccount(@PathVariable String number) {
+        return accountService.findByNumber(number).get();
+    }
+
+    @GetMapping("/user/{user_id}")
+    public List<Account> getAccount(@PathVariable UUID user_id) {
+        return accountService.findAllAccountsByClientId(user_id);
+    }
+
+    @GetMapping("username/{username}")
+    public List<Account> getAccountByUsername(@PathVariable String username) {
+        return accountService.findAllAccountsByUsername(username);
+    }
+
+
 }
