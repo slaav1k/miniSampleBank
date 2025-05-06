@@ -23,6 +23,10 @@
 Визуализацию метрик. Скорость запросов и время отклика.
 ![image](https://github.com/user-attachments/assets/25bf8ee7-6a47-418c-b987-5194517128f6)
 
+Добавлен вывод % ошибок.
+![image](https://github.com/user-attachments/assets/0271bb64-90bb-4f7f-ac80-34b436a28e32)
+
+
 **UPD 06/05/2025**
 
 *Добавлена ветка postgres-exporter*
