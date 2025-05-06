@@ -4,6 +4,7 @@ import com.bankapp.model.Account;
 import com.bankapp.model.Client;
 import com.bankapp.repository.AccountRepository;
 import com.bankapp.repository.ClientRepository;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.swagger.v3.oas.annotations.Operation;
@@ -93,12 +94,17 @@ public class TransactionController {
     @GetMapping("/clients")
     public List<Client> getAllClients() {
         meterRegistry.counter("transactions_get_clients_requests_total", "application", "bank-app", "endpoint", "/clients").increment();
+        Counter errorsCounter = meterRegistry.counter("transactions_get_clients_errors_total", "application", "bank-app", "endpoint", "/clients");
         Timer.Sample sample = Timer.start(meterRegistry);
-
-        List<Client> clients = List.copyOf(clientRepository.findAll());
-
-        sample.stop(meterRegistry.timer("transactions_get_clients_duration", "application", "bank-app", "endpoint", "/clients"));
-        return clients;
+        try {
+            List<Client> clients = List.copyOf(clientRepository.findAll());
+            sample.stop(meterRegistry.timer("transactions_get_clients_duration", "application", "bank-app", "endpoint", "/clients"));
+            return clients;
+        } catch (Exception e) {
+            errorsCounter.increment();
+            sample.stop(meterRegistry.timer("transactions_get_clients_duration", "application", "bank-app", "endpoint", "/clients"));
+            throw e;
+        }
     }
 
     // Эндпоинт: POST /transactions/select-recipient
@@ -186,14 +192,17 @@ public class TransactionController {
     ) {
         meterRegistry.counter("transactions_select_recipient_requests_total", "application", "bank-app", "endpoint", "/select-recipient").increment();
         Timer.Sample sample = Timer.start(meterRegistry);
+        Counter errorsCounter = meterRegistry.counter("transactions_select_recipient_errors_total", "application", "bank-app", "endpoint", "/select-recipient");
 
         String res = restTemplate.getForObject("http://localhost:8081/auth/isLogged", String.class);
         if (res.equals("не аутентифицирован")) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             System.out.println("❌ Ошибка: Сначала войдите в систему!");
             return "❌ Ошибка: Сначала войдите в систему!";
         }
         if (!res.equals("аутентифицирован")) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             System.out.println("❌ Ошибка: попробуйте попозже");
             return "❌ Ошибка: попробуйте попозже";
@@ -201,6 +210,7 @@ public class TransactionController {
 
         Client clientFromAuthServer = restTemplate.getForObject("http://localhost:8081/client/" + username, Client.class);
         if (clientFromAuthServer == null) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             System.out.println("❌ Ошибка: Получатель не найден! 47");
             return "❌ Ошибка: Получатель не найден! 47";
@@ -212,6 +222,7 @@ public class TransactionController {
         Optional<Client> recipientOpt = clientRepository.findById(clientFromAuthServer.getId());
         System.out.println(recipientOpt.get());
         if (recipientOpt.isEmpty()) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             System.out.println("❌ Ошибка: Получатель не найден! 52");
             return "❌ Ошибка: Получатель не найден! 52";
@@ -225,6 +236,7 @@ public class TransactionController {
                 .findFirst();
 
         if (recipientAccountOpt.isEmpty()) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_select_recipient_duration", "application", "bank-app", "endpoint", "/select-recipient"));
             return "❌ Ошибка: У получателя нет такого счета!";
         }
@@ -322,33 +334,39 @@ public class TransactionController {
             )
     )
     @PostMapping("/transfer")
-    @Transactional // Добавляем транзакцию для атомарности
+    @Transactional
     public String transfer(
             @Parameter(description = "Сумма перевода в рублях", example = "1000.0")
             @RequestParam double amount
     ) {
         meterRegistry.counter("transactions_transfer_requests_total", "application", "bank-app", "endpoint", "/transfer").increment();
         Timer.Sample sample = Timer.start(meterRegistry);
+        Counter errorsCounter = meterRegistry.counter("transactions_transfer_errors_total", "application", "bank-app", "endpoint", "/transfer");
+
 
         String authStatus = restTemplate.getForObject("http://localhost:8081/auth/isLogged", String.class);
         if (authStatus.equals("не аутентифицирован")) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Сначала войдите в систему!";
         }
 
         if (recipientClient == null || recipientAccount == null) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Сначала выберите получателя!";
         }
 
         Client senderFromAuthServer = restTemplate.getForObject("http://localhost:8081/auth/currentClient", Client.class);
         if (senderFromAuthServer == null) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Пользователь не авторизован!";
         }
 
         Optional<Client> senderOpt = clientRepository.findById(senderFromAuthServer.getId());
         if (senderOpt.isEmpty()) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Получатель не найден!";
         }
@@ -357,6 +375,7 @@ public class TransactionController {
 
         Optional<Account> senderAccountOpt = sender.getAccounts().stream().findFirst();
         if (senderAccountOpt.isEmpty()) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: У вас нет счета!";
         }
@@ -364,6 +383,7 @@ public class TransactionController {
         Account senderAccount = senderAccountOpt.get();
 
         if (senderAccount.getBalance() < amount) {
+            errorsCounter.increment();
             sample.stop(meterRegistry.timer("transactions_transfer_duration", "application", "bank-app", "endpoint", "/transfer"));
             return "❌ Ошибка: Недостаточно средств на счете!";
         }
