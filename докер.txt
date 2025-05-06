@@ -1,0 +1,27 @@
+docker run -d \
+  --name auth-postgres \
+  -p 5433:5432 \
+  -e POSTGRES_DB=bankBD \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=123 \
+  postgres:latest
+  
+  docker run -d \
+  --name postgres-exporter \
+  -p 9187:9187 \
+  -e DATA_SOURCE_NAME="postgresql://postgres:123@localhost:5433/bankBD?sslmode=disable" \
+  quay.io/prometheuscommunity/postgres-exporter:latest
+  
+  
+  docker run -d \
+  --name postgres-exporter \
+  -p 9187:9187 \
+  --network bank-network \
+  -e DATA_SOURCE_NAME="postgresql://postgres:123@auth-postgres:5432/bankBD?sslmode=disable" \
+  quay.io/prometheuscommunity/postgres-exporter:latest
+  
+
+https://prometheus.io/docs/instrumenting/exporters/
+
+https://github.com/prometheus-community/postgres_exporter
+
